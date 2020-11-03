@@ -4,7 +4,7 @@
 public class WeaponStats : ScriptableObject
 {
     public int weaponId;
-    public float damage;
+    public int damage;
     public float fireRate;
     public float reloadTime;
     public int clipSize;

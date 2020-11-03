@@ -15,6 +15,6 @@ MonoBehaviour:
   weaponId: 0
   damage: 10
   fireRate: 0.1
-  reloadTime: 4
+  reloadTime: 1
   clipSize: 30
   numberOfClips: 3

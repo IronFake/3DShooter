@@ -1365,6 +1365,8 @@ MonoBehaviour:
   defaultSettings:
     ParticlePrefab: {fileID: 8608183087981362248, guid: 7c4e04b762f5027428b98e25fbc03fa2,
       type: 3}
+    bulletHole: {fileID: 2520383000092180428, guid: d0bff507aa8a3744b84b058e5129c561,
+      type: 3}
     ImpactSound: {fileID: 0}
     TargetMaterial: {fileID: 0}
   impactSettings: []
@@ -1670,6 +1672,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Player
+      objectReference: {fileID: 0}
+    - target: {fileID: 6370391929798246059, guid: 489863a23d26d1f4aae5daf23b9eb30e,
+        type: 3}
+      propertyPath: m_CullingMask.m_Bits
+      value: 7479
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 489863a23d26d1f4aae5daf23b9eb30e, type: 3}
@@ -2542,7 +2549,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1270879658800896, guid: c21252cbe01eccd4a967b728d0b09f5a, type: 3}
       propertyPath: m_Layer
-      value: 8
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4116259839626626, guid: c21252cbe01eccd4a967b728d0b09f5a, type: 3}
       propertyPath: m_LocalPosition.x

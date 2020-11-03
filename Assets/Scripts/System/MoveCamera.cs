@@ -6,8 +6,8 @@ public class MoveCamera : MonoBehaviour
 
     public float MouseSensitivity;
 
-    private float m_HorizontalAngle;
-    private float m_VerticalAngle;
+    public float m_HorizontalAngle { get; set; }
+    public float m_VerticalAngle { get; set; }
 
     // Start is called before the first frame update
     void Start()

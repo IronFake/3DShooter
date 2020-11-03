@@ -1,5 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using UnityEditor;
 using UnityEngine;
 
 public class Weapon : MonoBehaviour
@@ -84,31 +86,38 @@ public class Weapon : MonoBehaviour
     }
     public WeaponState currentState { get; private set; }
     public int clipContent { get; private set; }
-    public FPSController owner { get; private set; }
+    public Actor owner { get; private set; }
+    public bool ownerIsPlayer { get; private set; }
     #endregion
 
     #region Private field
     private bool m_TriggerDown;
     private bool m_ShotDone;
     private float m_ShotTimer = -1.0f;
-    private int mimimumClipSize = 4;
-    private int ammoRemaining = 0;
+    private int m_MimimumClipSize = 4;
+    private int m_AmmoRemaining = 0;
 
-    private int trailPoolSize = 16;
+    private int m_TrailPoolSize = 16;
     private List<ActiveTrail> m_ActiveTrails = new List<ActiveTrail>();
     private Queue<Projectile> m_ProjectilePool = new Queue<Projectile>();
+
+    private Animator m_Animator;
+    private int fireNameHash = Animator.StringToHash("fire");
+    private int reloadNameHash = Animator.StringToHash("reload");
+
+    private AudioSource m_Source;
+
+    private WeaponRecoil m_WeaponRecoil;
     #endregion
 
     private void Awake()
     {
         clipContent = weaponStats.clipSize;
-        ammoRemaining = clipContent * (weaponStats.numberOfClips - 1);
-
-        
+        m_AmmoRemaining = clipContent * (weaponStats.numberOfClips - 1);
 
         if (projectilePrefab != null)
         {
-            int size = Mathf.Max(mimimumClipSize, weaponStats.clipSize) * advancedSettings.projectilePerShot;
+            int size = Mathf.Max(m_MimimumClipSize, weaponStats.clipSize) * advancedSettings.projectilePerShot;
             for (int i = 0; i < size; i++)
             {
                 Projectile p = Instantiate(projectilePrefab);
@@ -116,12 +125,18 @@ public class Weapon : MonoBehaviour
                 m_ProjectilePool.Enqueue(p);
             }
         }
+
+        m_Animator = GetComponent<Animator>();
+        m_Source = GetComponent<AudioSource>();
+        m_WeaponRecoil = GetComponent<WeaponRecoil>();
     }
 
     private void Start()
     {
         if (prefabRayTrail != null)
-            PoolSystem.Instance.InitPool(prefabRayTrail, trailPoolSize);
+            PoolSystem.Instance.InitPool(prefabRayTrail, m_TrailPoolSize);
+
+
     }
 
     private void Update()
@@ -131,6 +146,7 @@ public class Weapon : MonoBehaviour
         if (m_ShotTimer > 0)
             m_ShotTimer -= Time.deltaTime;
 
+        //Animate trails 
         Vector3[] pos = new Vector3[2];
         for (int i = 0; i < m_ActiveTrails.Count; i++)
         {
@@ -152,18 +168,63 @@ public class Weapon : MonoBehaviour
             }
         }
     }
+    private void UpdateControllerState()
+    {
+        //This will control state of controller
+        var info = m_Animator.GetCurrentAnimatorStateInfo(0);
 
-    public void PickedUp(FPSController c)
+        WeaponState newState;
+        if (info.shortNameHash == fireNameHash)
+            newState = WeaponState.Firing;
+        else if (info.shortNameHash == reloadNameHash)
+            newState = WeaponState.Reloading;
+        else
+            newState = WeaponState.Idle;
+
+        if (newState != currentState)
+        {
+            var oldState = currentState;
+            currentState = newState;
+
+            if(oldState == WeaponState.Firing)
+            {
+                //we just finished firing, so check if we need to auto reload
+                if (clipContent == 0)
+                    Reload();
+            }
+        }
+
+        if (triggerDown)
+        {
+            if (triggerType == TriggerType.Manual)
+            {
+                if (!m_ShotDone)
+                {
+                    m_ShotDone = true;
+                    Fire();
+                }
+            }
+            else
+                Fire();
+        }
+    }
+
+    public void PickedUp(Actor c)
     {
         owner = c;
+        if (owner.gameObject.tag == "Player")
+        {
+            ownerIsPlayer = true;
+        }
     }
 
     public void PutAway()
     {
+        m_Animator.WriteDefaultValues();
+
         for (int i = 0; i < m_ActiveTrails.Count; i++)
         {
-            var activeTrail = m_ActiveTrails[i];
-            m_ActiveTrails[i].renderer.gameObject.SetActive(false);
+             m_ActiveTrails[i].renderer.gameObject.SetActive(false);
         }
 
         m_ActiveTrails.Clear();
@@ -172,24 +233,32 @@ public class Weapon : MonoBehaviour
     public void Selected()
     {
         if (disabledOnEmpty)
-            gameObject.SetActive(ammoRemaining != 0 || clipContent != 0);
+            gameObject.SetActive(m_AmmoRemaining != 0 || clipContent != 0);
+
+        //Set animation speed
+        if (fireAnimationClip != null)
+            m_Animator.SetFloat("fireSpeed", fireAnimationClip.length / weaponStats.fireRate);
+
+        if (reloadAnimationClip != null)
+            m_Animator.SetFloat("reloadSpeed", reloadAnimationClip.length / weaponStats.reloadTime);
 
         currentState = WeaponState.Idle;
 
         triggerDown = false;
         m_ShotDone = false;
 
-        WeaponInfoUI.Instance.UpdateClipInfo(clipContent);
-        WeaponInfoUI.Instance.UpdateAmmoRemaining(ammoRemaining);
-
-        if (clipContent == 0 && ammoRemaining != 0)
+        if (clipContent == 0 && m_AmmoRemaining != 0)
         {
-            int chargeInClip = Mathf.Min(ammoRemaining, weaponStats.clipSize);
+            int chargeInClip = Mathf.Min(m_AmmoRemaining, weaponStats.clipSize);
             clipContent += chargeInClip;
-            ammoRemaining -= chargeInClip;
-            WeaponInfoUI.Instance.UpdateClipInfo(clipContent);
-            WeaponInfoUI.Instance.UpdateAmmoRemaining(ammoRemaining);
+            m_AmmoRemaining -= chargeInClip;
+
+            
         }
+        m_Animator.SetTrigger("selected");
+
+        UpdateWeaponUI(true);
+
     }
 
     public void Fire()
@@ -200,10 +269,13 @@ public class Weapon : MonoBehaviour
         clipContent -= 1;
         m_ShotTimer = weaponStats.fireRate;
 
-        WeaponInfoUI.Instance.UpdateClipInfo(clipContent);
+        UpdateWeaponUI(false);
 
         //the state will only change next frame, so we set it right now.
         currentState = WeaponState.Firing;
+        m_Animator.SetTrigger("fire");
+        m_Source.pitch = Random.Range(0.7f, 1.0f);
+        m_Source.PlayOneShot(fireAudioClip);
 
         if (weaponType == WeaponType.Raycast)
         {
@@ -220,13 +292,9 @@ public class Weapon : MonoBehaviour
 
     private void RaycastShot()
     {
-        //compute the ratio of our spread angle over the fov to know in viewport space what is the possible offset from center
-        float spreadRatio = advancedSettings.spreadAngle / FPSController.Instance.MainCamera.fieldOfView;
-
-        Vector2 spread = spreadRatio * Random.insideUnitCircle;
-
         RaycastHit hit;
-        Ray r = FPSController.Instance.MainCamera.ViewportPointToRay(Vector3.one * 0.5f + (Vector3)spread);
+        
+        Ray r = GetRay();
         Vector3 hitPosition = r.origin + r.direction * 200.0f;
 
         if(Physics.Raycast(r, out hit, 1000.0f, ~(1 << 9), QueryTriggerInteraction.Ignore))
@@ -238,30 +306,73 @@ public class Weapon : MonoBehaviour
             if (hit.distance > 5.0f)
                 hitPosition = hit.point;
 
-            //this is a target
-            if (hit.collider.gameObject.layer == 10)
-            {
-                //Target target = hit.collider.gameObject.GetComponent<Target>();
-                //target.Got(damage);
-            }
+            Damageable target = hit.collider.gameObject.GetComponent<Damageable>();
+            if (target != null)
+                target.GotDamage(weaponStats.damage);
         }
 
         if (prefabRayTrail != null)
         {
-
-            var pos = new Vector3[] { GetCorrectedMuzzlePlace(), hitPosition };
-
-            var trail = PoolSystem.Instance.GetInstance<LineRenderer>(prefabRayTrail);
-            trail.gameObject.SetActive(true);
-            trail.SetPositions(pos);
-            m_ActiveTrails.Add(new ActiveTrail()
+            if (ownerIsPlayer)
+                CreateRayTrail(GetCorrectedMuzzlePlace(), hitPosition);
+            else
             {
-                remainingTime = 0.3f,
-                direction = (pos[1] - pos[0]).normalized,
-                renderer = trail
-            });
+                CreateRayTrail(endPoint.position, hitPosition);
+            }            
         }
 
+        if(m_WeaponRecoil != null)
+            m_WeaponRecoil.GenerateRecoil();
+
+    }
+
+    //return ray from muzzle of weapon to forward
+    private Ray GetRay()
+    {
+        if (ownerIsPlayer)
+        {
+            //compute the ratio of our spread angle over the fov to know in viewport space what is the possible offset from center
+            float spreadRatio = advancedSettings.spreadAngle / FPSController.Instance.MainCamera.fieldOfView;
+            Vector2 spread = spreadRatio * Random.insideUnitCircle;
+
+            return FPSController.Instance.MainCamera.ViewportPointToRay(Vector3.one * 0.5f + (Vector3)spread);
+        }
+        else
+        {
+            return new Ray(endPoint.position, endPoint.transform.forward);
+        }
+    }
+
+    /// <summary>
+    /// This will compute the corrected position of the muzzle flash in world space. Since the weapon camera use a
+    /// different FOV than the main camera, using the muzzle spot to spawn thing rendered by the main camera will appear
+    /// disconnected from the muzzle flash. So this convert the muzzle post from
+    /// world -> view weapon -> clip weapon -> inverse clip main cam -> inverse view cam -> corrected world pos
+    /// </summary>
+    /// <returns></returns>
+    public Vector3 GetCorrectedMuzzlePlace()
+    {
+        Vector3 position = endPoint.position;
+
+        position = FPSController.Instance.WeaponCamera.WorldToScreenPoint(position);
+        position = FPSController.Instance.MainCamera.ScreenToWorldPoint(position);
+
+        return position;
+    }
+
+    private void CreateRayTrail(Vector3 begin, Vector3 end)
+    {
+        var trail = PoolSystem.Instance.GetInstance<LineRenderer>(prefabRayTrail);
+        trail.gameObject.SetActive(true);
+        trail.SetPosition(0, begin);
+        trail.SetPosition(1, end);
+
+        m_ActiveTrails.Add(new ActiveTrail()
+        {
+            remainingTime = 0.3f,
+            direction = (end - begin).normalized,
+            renderer = trail
+        });
     }
 
     private void ProjectileShot()
@@ -287,29 +398,13 @@ public class Weapon : MonoBehaviour
         m_ProjectilePool.Enqueue(p);
     }
 
-    /// <summary>
-    /// This will compute the corrected position of the muzzle flash in world space. Since the weapon camera use a
-    /// different FOV than the main camera, using the muzzle spot to spawn thing rendered by the main camera will appear
-    /// disconnected from the muzzle flash. So this convert the muzzle post from
-    /// world -> view weapon -> clip weapon -> inverse clip main cam -> inverse view cam -> corrected world pos
-    /// </summary>
-    /// <returns></returns>
-    public Vector3 GetCorrectedMuzzlePlace()
-    {
-        Vector3 position = endPoint.position;
-
-        position = FPSController.Instance.WeaponCamera.WorldToScreenPoint(position);
-        position = FPSController.Instance.MainCamera.ScreenToWorldPoint(position);
-
-        return position;
-    }
 
     public void Reload()
     {
         if (currentState != WeaponState.Idle || clipContent == weaponStats.clipSize)
             return;
 
-        if (ammoRemaining == 0)
+        if (m_AmmoRemaining == 0)
         {
             //No more bullet, so we disable the gun so it's displayed on empty (useful e.g. for grenade)
             if (disabledOnEmpty)
@@ -317,34 +412,33 @@ public class Weapon : MonoBehaviour
             return;
         }
 
-        int chargeInClip = Mathf.Min(ammoRemaining, weaponStats.clipSize - clipContent);
+        int chargeInClip = Mathf.Min(m_AmmoRemaining, weaponStats.clipSize - clipContent);
 
         //the state will only change next frame, so we set it right now.
         currentState = WeaponState.Reloading;
+        m_Animator.SetTrigger("reload");
+
+        if (reloadAudioClip != null)
+        {
+            m_Source.pitch = Random.Range(0.7f, 1.0f);
+            m_Source.PlayOneShot(reloadAudioClip);
+        }
 
         clipContent += chargeInClip;
-        ammoRemaining -= chargeInClip;
+        m_AmmoRemaining -= chargeInClip;
 
-        WeaponInfoUI.Instance.UpdateClipInfo(clipContent);
-        WeaponInfoUI.Instance.UpdateAmmoRemaining(ammoRemaining);
+        UpdateWeaponUI(true);
     }
 
-    private void UpdateControllerState()
+    private void UpdateWeaponUI(bool reload)
     {
-        currentState = WeaponState.Idle;
-
-        if (triggerDown)
+        if (ownerIsPlayer)
         {
-            if (triggerType == TriggerType.Manual)
+            WeaponInfoUI.Instance.UpdateClipInfo(clipContent);
+            if (reload)
             {
-                if (!m_ShotDone)
-                {
-                    m_ShotDone = true;
-                    Fire();
-                }
+                WeaponInfoUI.Instance.UpdateAmmoRemaining(m_AmmoRemaining);
             }
-            else
-                Fire();
-        }
-    }
+        } 
+    }  
 }

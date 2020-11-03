@@ -13,65 +13,32 @@ public class WeaponManager : MonoBehaviour
 
     private Weapon[] availableWeapons = new Weapon[2];
 
-    private int m_CurrentWeapon;
+    public int currentWeaponIndex { get; private set; }
+
+    private bool ownerIsPlayer;
 
     private void Start()
     {
+        ownerIsPlayer = gameObject.tag == "Player" ? true : false;
 
         PickupWeapon(primaryWeapon);
         PickupWeapon(secondaryWeapon);
 
-        m_CurrentWeapon = -1;
+        currentWeaponIndex = -1;
         ChangeWeapon(0);
     }
 
-    private void Update()
-    {
-        if (availableWeapons[m_CurrentWeapon] != null)
-        {
-            availableWeapons[m_CurrentWeapon].triggerDown = Input.GetMouseButton(0);
-        }
-        
-        if (Input.GetButton("Reload"))
-            availableWeapons[m_CurrentWeapon].Reload();
-
-        if (Input.GetAxis("Mouse ScrollWheel") < 0)
-        {
-            ChangeWeapon(m_CurrentWeapon - 1);
-        }
-
-        if (Input.GetAxis("Mouse ScrollWheel") > 0)
-        {
-            ChangeWeapon(m_CurrentWeapon + 1);
-        }
-
-        //Key input to change weapon
-        for (int i = 0; i < 10; i++)
-        {
-            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
-            {
-                int num;
-                if (i == 0)
-                    num = 10;
-                else
-                    num = i - 1;
-
-                if (num < availableWeapons.Length)
-                {
-                    ChangeWeapon(num);
-                }
-            }
-        }
-    }
-
-    private void PickupWeapon(Weapon prefab)
+    public void PickupWeapon(Weapon prefab)
     {
         Weapon w = Instantiate(prefab, weaponPosition, false);
         w.name = prefab.name;
         w.transform.localPosition = Vector3.zero;
         w.transform.localRotation = Quaternion.identity;
         w.gameObject.SetActive(false);
-        w.PickedUp(gameObject.GetComponent<FPSController>());
+        w.PickedUp(gameObject.GetComponent<Actor>());
+
+        if (!ownerIsPlayer)
+            w.gameObject.layer = LayerMask.NameToLayer("Enemy");
 
         switch (prefab.weaponClass)
         {
@@ -85,26 +52,47 @@ public class WeaponManager : MonoBehaviour
                 availableWeapons[2] = w;
                 break;
         }
-        
     }
 
     public void ChangeWeapon(int number)
     {
-        if(m_CurrentWeapon != -1)
+        if (number > availableWeapons.Length)
+            return;
+
+        if (currentWeaponIndex != -1)
         {
-            availableWeapons[m_CurrentWeapon].PutAway();
-            availableWeapons[m_CurrentWeapon].gameObject.SetActive(false);
+            availableWeapons[currentWeaponIndex].PutAway();
+            availableWeapons[currentWeaponIndex].gameObject.SetActive(false);
         }
 
-        m_CurrentWeapon = number;
+        currentWeaponIndex = number;
 
-        if (m_CurrentWeapon < 0)
-            m_CurrentWeapon = availableWeapons.Length - 1;
-        else if (m_CurrentWeapon >= availableWeapons.Length)
-            m_CurrentWeapon = 0;
+        if (currentWeaponIndex < 0)
+            currentWeaponIndex = availableWeapons.Length - 1;
+        else if (currentWeaponIndex >= availableWeapons.Length)
+            currentWeaponIndex = 0;
 
-        availableWeapons[m_CurrentWeapon].gameObject.SetActive(true);
-        availableWeapons[m_CurrentWeapon].Selected();
+        availableWeapons[currentWeaponIndex].gameObject.SetActive(true);
+        availableWeapons[currentWeaponIndex].Selected();
     }
+
+    public void Shoot(bool state)
+    {
+        Weapon weapon = availableWeapons[currentWeaponIndex];
+        if (weapon != null)
+        {
+            if(weapon.clipContent == 0)
+            {
+                weapon.Reload();
+            }
+            availableWeapons[currentWeaponIndex].triggerDown = state;
+        }
+    }
+
+    public void Reload()
+    {
+        availableWeapons[currentWeaponIndex].Reload();
+    }
+
 
 }

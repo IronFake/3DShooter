@@ -1,8 +1,8 @@
 ﻿using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class FPSController : MonoBehaviour
-{
+public class FPSController : Actor
+    {
     public static FPSController Instance { get; protected set; }
 
     [Tooltip("How fast the player moves when walking (default move speed).")]
@@ -72,7 +72,7 @@ public class FPSController : MonoBehaviour
     private int m_JumpTimer;
 
 
-    public WeaponManager weaponManager { get; private set; }
+    public WeaponManager weaponManager;
     public Camera MainCamera;
     public Camera WeaponCamera;
 
@@ -199,6 +199,42 @@ public class FPSController : MonoBehaviour
 
         // Move the controller, and set grounded true or false depending on whether we're standing on something
         m_Grounded = (m_Controller.Move(m_MoveDirection * Time.deltaTime) & CollisionFlags.Below) != 0;
+
+
+        //Weapon controls
+        weaponManager.Shoot(Input.GetMouseButton(0));
+
+        if (Input.GetButton("Reload"))
+        {
+            weaponManager.Reload();
+        }
+            
+
+        if (Input.GetAxis("Mouse ScrollWheel") < 0)
+        {
+            weaponManager.ChangeWeapon(weaponManager.currentWeaponIndex - 1);
+        }
+
+        if (Input.GetAxis("Mouse ScrollWheel") > 0)
+        {
+            weaponManager.ChangeWeapon(weaponManager.currentWeaponIndex + 1);
+        }
+
+        //Key input to change weapon
+        for (int i = 0; i < 10; i++)
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+            {
+                int num;
+                if (i == 0)
+                    num = 10;
+                else
+                    num = i - 1;
+
+                weaponManager.ChangeWeapon(num);
+            }
+        }
+
     }
 
 
