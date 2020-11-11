@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Rifle
   m_EditorClassIdentifier: 
   weaponId: 0
-  damage: 10
+  damage: 20
   fireRate: 0.1
   reloadTime: 1
   clipSize: 30

@@ -27,10 +27,11 @@ public class ImpactManager : MonoBehaviour
 
     private void Start()
     {
-        PoolSystem.Instance.InitPool(defaultSettings.bulletHole, 20);
+        
         PoolSystem.Instance.InitPool(defaultSettings.ParticlePrefab, 32);
         foreach (var impactSettings in impactSettings)
         {
+            PoolSystem.Instance.InitPool(impactSettings.bulletHole, 20);
             PoolSystem.Instance.InitPool(impactSettings.ParticlePrefab, 32);
             m_SettingLookup.Add(impactSettings.TargetMaterial, impactSettings);
         }
@@ -51,9 +52,12 @@ public class ImpactManager : MonoBehaviour
         sys.gameObject.SetActive(true);
         sys.Play();
 
-        var bulletHole = PoolSystem.Instance.GetInstance<GameObject>(setting.bulletHole);
-        bulletHole.transform.position = position;
-        bulletHole.transform.forward = normal;
-        bulletHole.SetActive(true);
+        if(setting.bulletHole != null)
+        {
+            var bulletHole = PoolSystem.Instance.GetInstance<GameObject>(setting.bulletHole);
+            bulletHole.transform.position = position;
+            bulletHole.transform.forward = normal;
+            bulletHole.SetActive(true);
+        }
     }
 }

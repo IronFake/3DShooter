@@ -2,39 +2,36 @@
 
 public class MoveCamera : MonoBehaviour
 {
-    public Transform CameraPosition;
+    public Transform characterRoot;
 
-    public float MouseSensitivity;
+    public float HorizontalAngle { get; set; }
+    public float VerticalAngle { get; set; }
 
-    public float m_HorizontalAngle { get; set; }
-    public float m_VerticalAngle { get; set; }
+    private InputHandler m_input;
 
-    // Start is called before the first frame update
-    void Start()
+    public void Awake()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        m_input = InputHandler.Instance;
+        GameSystem.Instance.LockCursor();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        float turnPlayer = Input.GetAxis("Mouse X") * MouseSensitivity;
-        m_HorizontalAngle = m_HorizontalAngle + turnPlayer;
+        if (GameSystem.Instance.IsMatchOver || GameSystem.Instance.IsPause)
+            return;
 
-        if (m_HorizontalAngle > 360) m_HorizontalAngle -= 360.0f;
-        if (m_HorizontalAngle < 0) m_HorizontalAngle += 360.0f;
+        HorizontalAngle += m_input.TurnPlayer;
+        if (HorizontalAngle > 360) HorizontalAngle -= 360.0f;
+        if (HorizontalAngle < 0) HorizontalAngle += 360.0f;
 
         Vector3 currentAngles = transform.localEulerAngles;
-        currentAngles.y = m_HorizontalAngle;
+        currentAngles.y = HorizontalAngle;
         transform.localEulerAngles = currentAngles;
 
-        var turnCam = -Input.GetAxis("Mouse Y");
-        turnCam = turnCam * MouseSensitivity;
-        m_VerticalAngle = Mathf.Clamp(turnCam + m_VerticalAngle, -89.0f, 89.0f);
-        currentAngles = CameraPosition.transform.localEulerAngles;
-        currentAngles.x = m_VerticalAngle;
-        CameraPosition.transform.localEulerAngles = currentAngles;
-
+        VerticalAngle += m_input.TurnCamera;
+        VerticalAngle = Mathf.Clamp(VerticalAngle, -89.0f, 89.0f);
+        currentAngles = characterRoot.transform.localEulerAngles;
+        currentAngles.x = VerticalAngle;
+        characterRoot.transform.localEulerAngles = currentAngles;
     }
 }
